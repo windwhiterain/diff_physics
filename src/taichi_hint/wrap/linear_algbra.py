@@ -1,0 +1,68 @@
+from typing import Any, Literal, get_args, override
+
+import taichi
+from taichi_hint.scope import pyfunc
+from taichi_hint.util import is_solid_types
+from taichi_hint.wrap.common import Wrap, wrap
+
+
+@wrap
+class LinearAlgbra[Dim, Shape, Item](Wrap):
+    def __init__(self, *args): pass
+
+    @staticmethod
+    @override
+    def value(specialization: Any) -> Any:
+        dim_l, shape_l, item = specialization.Dim, specialization.Shape, specialization.Item
+        if not is_solid_types(dim_l, shape_l, item):
+            return None
+        shape = get_args(shape_l)
+        dim = len(shape)
+        if dim == 1:
+            ret = taichi.types.vector(shape[0], item)
+
+            @pyfunc
+            def cumprod(self):
+                ret = 1
+                for i in self:
+                    ret *= i
+                return ret
+
+            ret.cumprod = cumprod
+            return ret
+        elif dim == 2:
+            return taichi.types.matrix(shape[0], shape[1], item)
+        else:
+            raise Exception()
+
+    def __add__(self, o: 'LinearAlgbra[Dim, Shape, Item] | Item') -> 'LinearAlgbra[Dim, Shape, Item]':
+        ...
+
+    def __sub__(self, o: 'LinearAlgbra[Dim, Shape, Item] | Item') -> 'LinearAlgbra[Dim, Shape, Item]':
+        ...
+
+    def __mul__(self, o: Item) -> 'LinearAlgbra[Dim, Shape, Item]':
+        ...
+
+    def __truediv__(self, o: Item) -> 'LinearAlgbra[Dim, Shape, Item]':
+        ...
+
+    def __neg__(self) -> 'LinearAlgbra[Dim, Shape, Item]': ...
+
+    def __getitem__(
+        self, index: 'LinearAlgbra[Literal[1], Dim, int] | int') -> Item: ...
+    def __setitem__(
+        self, index: 'LinearAlgbra[Literal[1], Dim, int] | int', value: Item): ...
+
+    def norm(self) -> float: ...
+    def cumprod(self) -> Item: ...
+    def normalized(self) -> 'LinearAlgbra[Dim, Shape, Item]': ...
+
+    def cross(self, o: 'LinearAlgbra[Dim, Shape, Item]') -> 'LinearAlgbra[Dim, Shape, Item]':
+        ...
+
+
+Vec2I = LinearAlgbra[Literal[1], Literal[2], int]
+VecI = LinearAlgbra[Literal[1], Literal[3], int]
+Vec2 = LinearAlgbra[Literal[1], Literal[2], float]
+Vec = LinearAlgbra[Literal[1], Literal[3], float]
