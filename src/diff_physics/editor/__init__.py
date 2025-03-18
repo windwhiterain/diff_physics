@@ -1,12 +1,18 @@
+from dataclasses import dataclass
 import taichi as ti
 import taichi.math as tm
 
+from diff_physics.editor.renderable import Edges, Points, Renderable
 from taichi_hint.wrap.linear_algbra import Vec
 
 up = Vec(0, 0, 1)
 
 
 class Editor:
+
+    def __init__(self) -> None:
+        self.renderables = list[Renderable]()
+
     def run(self):
         pause = False
         time = 0
@@ -68,12 +74,17 @@ class Editor:
             camera.position(camera_position[0],
                             camera_position[1], camera_position[2])
             scene.set_camera(camera)
-            # scene.point_light(pos=camera_position, color=(1, 1, 1))
-            # scene.mesh(vertices=cloth.positions, indices=cloth.geometry.indices, color=(
-            #     1, 1, 1), two_sided=True)
-            # scene.particles(cloth.positions, 0.02, color=(1, 1, 1))
-            # scene.lines(cloth.positions, indices=grid.string_energy.indices,
-            #             color=(0, 0, 1), width=1)
+            scene.point_light(pos=camera_position, color=(1, 1, 1))
+            for renderable in self.renderables:
+                if isinstance(renderable, Points):
+                    scene.particles(renderable.positions, 0.02, color=(1, 1, 1))
+                    if isinstance(renderable, Edges):
+                        scene.lines(
+                            renderable.positions,
+                            indices=renderable.indices.to_numpy().flatten(),
+                            color=(0, 0, 1),
+                            width=1,
+                        )
             canvas.scene(scene)
 
             window.show()

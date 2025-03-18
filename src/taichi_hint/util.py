@@ -1,4 +1,4 @@
-from types import GenericAlias
+from types import GenericAlias, UnionType
 from typing import Any, Iterable, TypeAliasType, TypeVar, get_origin
 
 
@@ -28,9 +28,13 @@ def is_dunder(name: str) -> bool:
     return name.startswith("__") and name.endswith("__") and len(name) > 4
 
 
+def is_solid_type(type) -> bool:
+    return not isinstance(type, (TypeVar, UnionType))
+
+
 def is_solid_types(*types) -> bool:
     for type in types:
-        if isinstance(type, TypeVar):
+        if not is_solid_type(type):
             return False
     return True
 

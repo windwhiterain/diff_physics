@@ -1,28 +1,23 @@
-
-from typing import get_args
-from numpy import ndarray
+from typing import Annotated, Any, overload, override
+import numpy
 import taichi
-from taichi.lang.util import taichi_scope
+import taichi.lang
+import taichi.lang.ast
+import taichi.lang.ast.hint
+from diff_physics.editor import Editor
+from diff_physics.editor.renderable import Edges
+from diff_physics.pcg import X0Y, Attribute, Grid2Prim0, Grid2Prim1, kernel
+from taichi_hint.wrap.linear_algbra import Vec, Vec2, Vec2I
+from taichi_hint.wrap.ndarray import NDArray
+from taichi_lib.common import Box2I
 
-from taichi_hint.scope import kernel
-from taichi_hint.template import Templated
-from taichi_hint.wrap.linear_algbra import Vec2I, VecI
-from taichi_lib.common import Box2I, BoxI
+taichi.init(taichi.lang.gpu)
 
-taichi.init()
+g2p0 = Grid2Prim0(Box2I(Vec2I(0, 0), Vec2I(4, 4)))
+positions = Attribute[Vec](g2p0, [X0Y()]).array
+print(positions.to_numpy())
+g2p1 = Grid2Prim1(g2p0)
 
-@taichi.func
-def grouped(x:taichi.template()):
-    ret = [(0,0)]*x.n
-    for i in taichi.static(range(x.n)):
-        ret[i] = (0,x[i])
-    return taichi.grouped(taichi.ndrange(*ret))
-
-
-@kernel
-def tt(x: Templated[BoxI]):
-    for i in x.ndrange():
-        print(i)
-
-
-tt(BoxI(VecI(1,1,1), VecI(2,3,4)))
+editor = Editor()
+editor.renderables.append(Edges(positions, g2p1.indices))
+editor.run()

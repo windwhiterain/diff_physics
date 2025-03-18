@@ -1,35 +1,35 @@
 from dataclasses import dataclass
-from typing import Literal, get_args
+from typing import Iterable, Literal, get_args
 import taichi as ti
 import taichi.math as tm
 
 from taichi_hint.wrap import wrap
 from taichi_hint.scope import pyfunc, func
 from taichi_hint.struct import Struct
-from taichi_hint.wrap.linear_algbra import LinearAlgbra
+from taichi_hint.wrap.linear_algbra import LinearAlgbra, Number, cumprod
 
 
 @wrap
 @dataclass
-class Bound[Dim, Item](Struct):
+class Bound[Dim, Item: Number](Struct):
     min: LinearAlgbra[Literal[1], Dim, Item]
     max: LinearAlgbra[Literal[1], Dim, Item]
 
     @pyfunc
     def shape(self) -> LinearAlgbra[Literal[1], Dim, Item]:
-        return self.max-self.min
+        return self.max - self.min
 
     @pyfunc
     def size(self) -> Item:
-        return self.shape().cumprod()
+        return cumprod(self.shape())
 
     @func
-    def ndrange(self):
+    def iter(self) -> Iterable[LinearAlgbra[Literal[1], Dim, Item]]:
         dim = ti.static(self.min.n)
-        subscript = [(0,0)]*dim
+        subscript = [(0, 0)] * dim
         for i in ti.static(range(dim)):
             subscript[i] = (self.min[i], self.max[i])
-        return ti.grouped(ti.ndrange(*subscript))
+        return ti.grouped(ti.ndrange(*subscript))  # type: ignore
 
 
 Box2 = Bound[Literal[2], float]
