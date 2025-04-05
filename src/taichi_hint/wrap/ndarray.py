@@ -2,6 +2,7 @@ from typing import Any, Literal, TypeVar, get_args, override
 
 import numpy
 import taichi
+from taichi_hint.util import is_solid_type
 from taichi_hint.wrap.common import Wrap, wrap
 from taichi_hint.wrap.linear_algbra import Algbra, LinearAlgbra, Number
 
@@ -16,11 +17,11 @@ class NDArray[Item: Algbra, Dim](Wrap):
 
     @staticmethod
     @override
-    def value(specialization: Any) -> Any:
+    def solidize(specialization: Any) -> Any:
         item, dim_l = specialization.Item, specialization.Dim
-        if isinstance(item, TypeVar):
+        if not is_solid_type(item):
             item = None
-        if isinstance(dim_l, TypeVar):
+        if not is_solid_type(dim_l):
             dim = None
         else:
             (dim,) = get_args(dim_l)

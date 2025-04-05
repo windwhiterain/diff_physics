@@ -2,7 +2,7 @@
   width: 14cm,
 )
 $
-M gradient_t^2 x = -gradient_x E(x)+f\
+M a = -gradient_x E(x)+f\
 $
 $
 M(delta t_(n+1)^(-2)delta x_(n+1)-delta t_(n+1)^(-1)delta t_n^(-1)delta x_n) = -gradient_x E(x_n)-gradient_x^2E(x_n)delta x_(n+1) + f\ 

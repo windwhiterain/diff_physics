@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Callable
 import taichi as ti
 import taichi.math as tm
 
@@ -13,7 +14,7 @@ class Editor:
     def __init__(self) -> None:
         self.renderables = list[Renderable]()
 
-    def run(self):
+    def run(self, func: Callable):
         pause = False
         time = 0
         dt = 0.5
@@ -70,6 +71,8 @@ class Editor:
 
             if not pause:
                 time += dt
+
+            func()
 
             camera.position(camera_position[0],
                             camera_position[1], camera_position[2])

@@ -15,7 +15,7 @@ class LinearAlgbra[Dim, Shape, Item: Number](Wrap):
 
     @staticmethod
     @override
-    def value(specialization: Any) -> Any:
+    def solidize(specialization: Any) -> Any:
         dim_l, shape_l, item = (
             specialization.Dim,
             specialization.Shape,

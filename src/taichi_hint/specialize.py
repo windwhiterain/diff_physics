@@ -3,6 +3,7 @@ from types import FunctionType, MethodType
 from typing import Any, Callable, TypeVar, get_args
 import typing
 
+from taichi_hint.common import Object
 from taichi_hint.util import de_generic_alias, is_dunder
 
 
@@ -12,12 +13,9 @@ def specialize(generic_alias: Any, type_map: dict[TypeVar, Any]) -> Any:
     generic = de_generic_alias(generic_alias)
     if class_getitem := getattr(generic, "__class_getitem__", None):
         if type_args := getattr(generic_alias, "__args__", None):
-            type_args_new = tuple(
-                specialize(i, type_map) for i in generic_alias.__args__
-            )
+            type_args_new = tuple(specialize(i, type_map) for i in type_args)
             return class_getitem(type_args_new)
-    else:
-        return generic_alias
+    return generic_alias
 
 
 specialize_data_name = "__specialize_data__"

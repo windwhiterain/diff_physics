@@ -29,7 +29,13 @@ def is_dunder(name: str) -> bool:
 
 
 def is_solid_type(type) -> bool:
-    return not isinstance(type, (TypeVar, UnionType))
+    if isinstance(type, (TypeVar, UnionType)):
+        return False
+    if type_args := getattr(type, "__args__", None):
+        for type_arg in type_args:
+            if not is_solid_type(type_arg):
+                return False
+    return True
 
 
 def is_solid_types(*types) -> bool:

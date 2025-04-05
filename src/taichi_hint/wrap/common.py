@@ -11,7 +11,7 @@ class Wrap(ABC):
 
     @staticmethod
     @abstractmethod
-    def value(specialization: Any) -> Any: ...
+    def solidize(specialization: Any) -> Any: ...
 
 
 wrap_data_name = "__wrap_data__"
@@ -30,7 +30,7 @@ def wrap[T:type[Wrap]](cls: T) -> T:
         if wrap_data := getattr(specialization, wrap_data_name, None):
             return wrap_data.value
         else:
-            value = cls.value(specialization)
+            value = cls.solidize(specialization)
             if value is None:
                 return specialization
             wrap_data = WrapData(value)

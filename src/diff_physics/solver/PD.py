@@ -56,7 +56,6 @@ class Solver(System):
             energy.set_data(data)
             self.b_dim += energy.b_dim()
             self.A_num += energy.A_num()
-        print("b_dim:", self.b_dim)
         self.arg = Arg(data.num, data.positions, self.data.time_delta,
                        self.data.velocities, self.data.masses, NDArray[float, Literal[1]].zero(data.num*3), NDArray[float, Literal[1]].zero(data.num*3), NDArray[float, Literal[1]].zero(data.num*3))
         A_buider = taichi.linalg.SparseMatrixBuilder(
@@ -69,7 +68,6 @@ class Solver(System):
             energy.build_A(A_pad_builder, offset)
             offset += energy.b_dim()
         self.A = A_buider.build()
-        print("A:\n", self.A)
         self.ATA = self.A.transpose()@self.A
         self.AT_pad = A_pad_builder.build().transpose()
         m_builder = taichi.linalg.SparseMatrixBuilder(
@@ -77,8 +75,7 @@ class Solver(System):
         self.build_m(m_builder)
         m = m_builder.build()
         dt = self.arg.time_delta
-        mat = m*(dt ** (-2)) + self.A.transpose()@self.A
-        print("mat:\n", mat)
+        mat = m * (dt ** (-2)) + self.A.transpose() @ self.A
         self.sparse_solver = taichi.linalg.SparseSolver(solver_type="LLT")
         self.sparse_solver.analyze_pattern(mat)
         self.sparse_solver.factorize(mat)
@@ -88,19 +85,13 @@ class Solver(System):
         for energy in self.data.energies:
             energy.fill_b(self.arg.b_pad, offset)
             offset += energy.b_dim()
-        print("b:", self.arg.b_pad.to_numpy())
         self.update_x()
-        print("x:", self.arg.x.to_numpy())
-        ATAx = self.ATA@self.arg.x
-        print("ATAx:", ATAx.to_numpy())
-        ATb = self.AT_pad@self.arg.b_pad
-        print("ATb:", ATb.to_numpy())
+        ATAx = self.ATA @ self.arg.x
+        ATb = self.AT_pad @ self.arg.b_pad
         substract(ATb, ATAx)
         self.arg.vec.copy_from(ATb)
         self.update_vec()
-        print("vec:", self.arg.vec.to_numpy())
         dx = self.sparse_solver.solve(self.arg.vec)
-        print("dx:", dx.to_numpy())
         self.update_position_velocity(dx)
 
     def update_position_velocity(self, dx: NDArray[float, Literal[1]]) -> None:
