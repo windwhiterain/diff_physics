@@ -33,7 +33,7 @@ class Arg(ArgPack):
     masses: NDArray[float, Literal[1]]
     # linear eq
     x: NDArray[float, Literal[1]]
-    b_pad: NDArray[float, Literal[1]]
+    b: NDArray[float, Literal[1]]
     vec: NDArray[float, Literal[1]]
 
 
@@ -44,7 +44,7 @@ class Solver(System):
     A_num: int
     A: taichi.linalg.SparseMatrix
     ATA: taichi.linalg.SparseMatrix
-    AT_pad: taichi.linalg.SparseMatrix
+    AT: taichi.linalg.SparseMatrix
     sparse_solver: taichi.linalg.SparseSolver
 
     @override
@@ -56,20 +56,26 @@ class Solver(System):
             energy.set_data(data)
             self.b_dim += energy.b_dim()
             self.A_num += energy.A_num()
-        self.arg = Arg(data.num, data.positions, self.data.time_delta,
-                       self.data.velocities, self.data.masses, NDArray[float, Literal[1]].zero(data.num*3), NDArray[float, Literal[1]].zero(data.num*3), NDArray[float, Literal[1]].zero(data.num*3))
+        self.arg = Arg(
+            data.num,
+            data.positions,
+            self.data.time_delta,
+            self.data.velocities,
+            self.data.masses,
+            NDArray[float, Literal[1]].zero(data.num * 3),
+            NDArray[float, Literal[1]].zero(self.b_dim),
+            NDArray[float, Literal[1]].zero(data.num * 3),
+        )
         A_buider = taichi.linalg.SparseMatrixBuilder(
-            self.b_dim, data.num*3, self.A_num)
-        A_pad_builder = taichi.linalg.SparseMatrixBuilder(
-            data.num*3, data.num*3, self.A_num)
+            self.b_dim, data.num * 3, self.A_num
+        )
         offset = 0
         for energy in self.data.energies:
             energy.build_A(A_buider, offset)
-            energy.build_A(A_pad_builder, offset)
             offset += energy.b_dim()
         self.A = A_buider.build()
-        self.ATA = self.A.transpose()@self.A
-        self.AT_pad = A_pad_builder.build().transpose()
+        self.AT = self.A.transpose()
+        self.ATA = self.AT @ self.A
         m_builder = taichi.linalg.SparseMatrixBuilder(
             self.arg.num*3, self.arg.num*3, self.arg.num*3)
         self.build_m(m_builder)
@@ -83,11 +89,11 @@ class Solver(System):
     def step(self) -> None:
         offset = 0
         for energy in self.data.energies:
-            energy.fill_b(self.arg.b_pad, offset)
+            energy.fill_b(self.arg.b, offset)
             offset += energy.b_dim()
         self.update_x()
         ATAx = self.ATA @ self.arg.x
-        ATb = self.AT_pad @ self.arg.b_pad
+        ATb = self.AT @ self.arg.b
         substract(ATb, ATAx)
         self.arg.vec.copy_from(ATb)
         self.update_vec()

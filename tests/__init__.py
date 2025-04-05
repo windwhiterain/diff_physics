@@ -18,7 +18,6 @@ from taichi_lib.common import Box2I
 taichi.init()
 
 g2p0 = Grid2Prim0(Box2I(Vec2I(0, 0), Vec2I(4, 4)))
-num = g2p0.num
 positions = Attribute[Vec](g2p0, [X0Y()]).array
 g2p1 = Grid2Prim1(g2p0)
 rest_lengths = Norm[Literal[3]](g2p1, positions).norms
@@ -33,18 +32,18 @@ class Data:
 
 
 edges = g2p1.indices
-string_data = diff_physics.energy.string.Data(1, edges, rest_lengths)
+string_data = diff_physics.energy.string.Data(g2p1.num, edges, rest_lengths)
 
-masses = NDArray[float, Literal[1]].zero(num)
+masses = NDArray[float, Literal[1]].zero(g2p0.num)
 masses.fill(1)
 solver_data = diff_physics.solver.PD.Data(
     0.02,
-    NDArray[Vec, Literal[1]].zero(num),
+    NDArray[Vec, Literal[1]].zero(g2p0.num),
     masses,
     [diff_physics.energy.string.Energy()],
 )
 
-data = Data(num, positions, solver_data, string_data)
+data = Data(g2p0.num, positions, solver_data, string_data)
 
 solver = diff_physics.solver.PD.Solver()
 solver.set_data(data)
