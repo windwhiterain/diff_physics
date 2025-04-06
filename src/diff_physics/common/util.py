@@ -20,7 +20,7 @@ def set_vec(array: NDArray[float, Literal[1]], dim: Templated[int], index: int, 
 
 
 @func
-def read_vec(array: NDArray[float, Literal[1]], dim: Templated[int], index: int) -> Vec:
+def get_vec(array: NDArray[float, Literal[1]], dim: Templated[int], index: int) -> Vec:
     ret = Vec(0)
     for i in taichi.static(range(dim)):
         ret[i] = array[index + i]
@@ -31,6 +31,12 @@ def read_vec(array: NDArray[float, Literal[1]], dim: Templated[int], index: int)
 def add_vec(array: NDArray[float, Literal[1]], dim: Templated[int], index: int, vec: Vec):
     for i in taichi.static(range(dim)):
         array[index + i] += vec[i]
+
+
+@kernel
+def add[Item, Dim](a: NDArray[Item, Dim], b: NDArray[Item, Dim]):
+    for i in taichi.grouped(a):
+        a[i] += b[i]
 
 
 @kernel

@@ -1,10 +1,20 @@
+from copy import copy, deepcopy
 from dataclasses import dataclass
 from typing import Any, Literal, override
 
 import taichi
 import taichi.lang
 import taichi.linalg.sparse_solver
-from diff_physics.common.util import Vec2I, add_diag, add_vec, multiply, read_vec, set_vec, substract
+from diff_physics.common.util import (
+    Vec2I,
+    add,
+    add_diag,
+    add_vec,
+    multiply,
+    get_vec,
+    set_vec,
+    substract,
+)
 from diff_physics.energy.base import Energy, System
 from taichi_hint.argpack import ArgPack
 from taichi_hint.scope import kernel
@@ -16,10 +26,10 @@ from taichi_hint.wrap.ndarray import NDArray
 
 @dataclass
 class Data:
-    time_delta: float
+    num: int
+    positions: NDArray[Vec, Literal[1]]
     velocities: NDArray[Vec, Literal[1]]
     masses: NDArray[float, Literal[1]]
-    energies: list[Energy]
 
 
 @wrap
@@ -35,6 +45,8 @@ class Arg(ArgPack):
     x: NDArray[float, Literal[1]]
     b: NDArray[float, Literal[1]]
     vec: NDArray[float, Literal[1]]
+    positions_prev: NDArray[Vec, Literal[1]]
+    x_prev: NDArray[float, Literal[1]]
 
 
 class Solver(System):
@@ -47,30 +59,45 @@ class Solver(System):
     AT: taichi.linalg.SparseMatrix
     sparse_solver: taichi.linalg.SparseSolver
 
+    def __init__(
+        self, energies: list[Energy], time_delta: float, iteration: int
+    ) -> None:
+        super().__init__()
+        self.energies = energies
+        self.time_delta = time_delta
+        self.iteration = iteration
+
     @override
-    def set_data(self, data: Any) -> None:
-        self.data = data.solver
+    def set_data(self, data: Data) -> None:
+        self.data = data
         self.b_dim = 0
         self.A_num = 0
-        for energy in self.data.energies:
+        positions_prev = deepcopy(data.positions)
+        for energy in self.energies:
+            data_energy = copy(data)
+            data_energy.positions = positions_prev
             energy.set_data(data)
             self.b_dim += energy.b_dim()
             self.A_num += energy.A_num()
         self.arg = Arg(
             data.num,
             data.positions,
-            self.data.time_delta,
+            self.time_delta,
             self.data.velocities,
             self.data.masses,
             NDArray[float, Literal[1]].zero(data.num * 3),
             NDArray[float, Literal[1]].zero(self.b_dim),
             NDArray[float, Literal[1]].zero(data.num * 3),
+            deepcopy(data.positions),
+            NDArray[float, Literal[1]].zero(data.num * 3),
         )
+        self.update_x()
+        self.arg.x_prev.copy_from(self.arg.x)
         A_buider = taichi.linalg.SparseMatrixBuilder(
             self.b_dim, data.num * 3, self.A_num
         )
         offset = 0
-        for energy in self.data.energies:
+        for energy in self.energies:
             energy.build_A(A_buider, offset)
             offset += energy.b_dim()
         self.A = A_buider.build()
@@ -87,31 +114,47 @@ class Solver(System):
         self.sparse_solver.factorize(mat)
 
     def step(self) -> None:
-        offset = 0
-        for energy in self.data.energies:
-            energy.fill_b(self.arg.b, offset)
-            offset += energy.b_dim()
-        self.update_x()
-        ATAx = self.ATA @ self.arg.x
-        ATb = self.AT @ self.arg.b
-        substract(ATb, ATAx)
-        self.arg.vec.copy_from(ATb)
-        self.update_vec()
-        dx = self.sparse_solver.solve(self.arg.vec)
-        self.update_position_velocity(dx)
+        for i in range(self.iteration):
+            offset = 0
+            for energy in self.energies:
+                energy.fill_b(self.arg.b, offset)
+                offset += energy.b_dim()
+            self.update_vec()
+            x_delta_next = self.sparse_solver.solve(self.arg.vec)
+            self.update_x_positions_prev(x_delta_next)
+        self.update_position_velocity_x(x_delta_next)
 
-    def update_position_velocity(self, dx: NDArray[float, Literal[1]]) -> None:
-        self._update_position_velocity(self.arg, dx)
+    def update_x_positions_prev(self, x_delta_next: NDArray[float, Literal[1]]):
+        self._update_x_positions_prev(self.arg, x_delta_next)
+
+    @kernel
+    def _update_x_positions_prev(
+        self, arg: Arg, x_delta_next: NDArray[float, Literal[1]]
+    ):
+        for i in range(arg.num * 3):
+            arg.x_prev[i] = arg.x[i] + x_delta_next[i]
+        for i in range(arg.num):
+            arg.positions_prev[i] = arg.positions[i] + get_vec(x_delta_next, 3, i * 3)
+
+    def update_position_velocity_x(
+        self, x_delta_next: NDArray[float, Literal[1]]
+    ) -> None:
+        self._update_position_velocity(self.arg, x_delta_next)
+        self.update_x()
 
     @kernel
     def _update_position_velocity(self, arg: Arg, dx: NDArray[float, Literal[1]]):
         for i in range(arg.num):
             dx_idx = i*3
-            position_delta = read_vec(dx, 3, dx_idx)
+            position_delta = get_vec(dx, 3, dx_idx)
             arg.positions[i] += position_delta
             arg.velocities[i] = position_delta/self.arg.time_delta
 
     def update_vec(self) -> None:
+        ATAx = self.ATA @ self.arg.x_prev
+        ATb = self.AT @ self.arg.b
+        substract(ATb, ATAx)
+        self.arg.vec.copy_from(ATb)
         self._update_vec(self.arg)
 
     @kernel

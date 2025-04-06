@@ -1,8 +1,9 @@
 from dataclasses import dataclass
+from turtle import position
 from typing import Any, Literal, override
 import taichi
 
-from diff_physics.common.util import add_diag, read_vec, set_vec
+from diff_physics.common.util import add_diag, get_vec, set_vec
 from taichi_hint.argpack import ArgPack
 from taichi_hint.scope import kernel
 from taichi_hint.wrap.linear_algbra import Vec, Vec2I
@@ -12,10 +13,16 @@ from diff_physics.energy.base import Energy as BaseEnergy
 
 
 @dataclass
-class Data:
+class StringData:
     num: int
     point_pairs: NDArray[Vec2I, Literal[1]]
     rest_len: NDArray[float, Literal[1]]
+
+
+@dataclass
+class Data:
+    positions: NDArray[Vec, Literal[1]]
+    string: StringData
 
 
 @wrap
@@ -34,7 +41,7 @@ class Energy(BaseEnergy):
     _A_num: int
 
     @override
-    def set_data(self, data: Any) -> None:
+    def set_data(self, data: Data) -> None:
         self.data = data.string
         self.arg = Arg(data.positions,
                        data.string.num,
@@ -72,8 +79,13 @@ class Energy(BaseEnergy):
             point_pair = arg.point_pairs[i]
             input_idx_pair = point_pair*3
             output_idx = i*3
-            set_vec(output, 3, output_offset+output_idx, -read_vec(input, 3,
-                    input_offset+input_idx_pair[0])+read_vec(input, 3, input_offset+input_idx_pair[1]))
+            set_vec(
+                output,
+                3,
+                output_offset + output_idx,
+                -get_vec(input, 3, input_offset + input_idx_pair[0])
+                + get_vec(input, 3, input_offset + input_idx_pair[1]),
+            )
 
     @override
     def fill_b(self,  b: NDArray[float, Literal[1]], offset: int) -> None:

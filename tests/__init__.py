@@ -23,29 +23,23 @@ g2p1 = Grid2Prim1(g2p0)
 rest_lengths = Norm[Literal[3]](g2p1, positions).norms
 multiply(rest_lengths, 0.9)
 
+
 @dataclass
-class Data:
-    num: int
-    positions: NDArray[Vec, Literal[1]]
-    solver: diff_physics.solver.PD.Data
-    string: diff_physics.energy.string.Data
+class Data(diff_physics.energy.string.Data, diff_physics.solver.PD.Data):
+    pass
 
 
 edges = g2p1.indices
-string_data = diff_physics.energy.string.Data(g2p1.num, edges, rest_lengths)
+string_data = diff_physics.energy.string.StringData(g2p1.num, edges, rest_lengths)
 
 masses = NDArray[float, Literal[1]].zero(g2p0.num)
 masses.fill(1)
-solver_data = diff_physics.solver.PD.Data(
-    0.02,
-    NDArray[Vec, Literal[1]].zero(g2p0.num),
-    masses,
-    [diff_physics.energy.string.Energy()],
+
+data = Data(
+    g2p0.num, positions, NDArray[Vec, Literal[1]].zero(g2p0.num), masses, string_data
 )
 
-data = Data(g2p0.num, positions, solver_data, string_data)
-
-solver = diff_physics.solver.PD.Solver()
+solver = diff_physics.solver.PD.Solver([diff_physics.energy.string.Energy()], 0.02, 4)
 solver.set_data(data)
 
 
