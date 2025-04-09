@@ -16,20 +16,19 @@ from diff_physics.common.util import (
     substract,
 )
 from diff_physics.energy.base import Energy, System
+from diff_physics.solver.base import Data as BaseData
 from taichi_hint.argpack import ArgPack
 from taichi_hint.scope import kernel
 from taichi_hint.util import repr_iterable
 from taichi_hint.wrap import  wrap
 from taichi_hint.wrap.linear_algbra import Vec
 from taichi_hint.wrap.ndarray import NDArray
+from diff_physics.solver.base import Solver as BaseSolver
 
 
 @dataclass
-class Data:
-    num: int
-    positions: NDArray[Vec, Literal[1]]
-    velocities: NDArray[Vec, Literal[1]]
-    masses: NDArray[float, Literal[1]]
+class Data(BaseData):
+    pass
 
 
 @wrap
@@ -49,8 +48,8 @@ class Arg(ArgPack):
     x_prev: NDArray[float, Literal[1]]
 
 
-class Solver(System):
-    data: Data
+class Solver(BaseSolver):
+    data: Data  # type: ignore
     arg: Arg
     b_dim: int
     A_num: int
@@ -59,21 +58,12 @@ class Solver(System):
     AT: taichi.linalg.SparseMatrix
     sparse_solver: taichi.linalg.SparseSolver
 
-    def __init__(
-        self, energies: list[Energy], time_delta: float, iteration: int
-    ) -> None:
-        super().__init__()
-        self.energies = energies
-        self.time_delta = time_delta
-        self.iteration = iteration
-
-    @override
-    def set_data(self, data: Data) -> None:
-        self.data = data
+    def set_data(self, data: Data) -> None:  # type: ignore
+        super().set_data(data)
         self.b_dim = 0
         self.A_num = 0
         positions_prev = deepcopy(data.positions)
-        for energy in self.energies:
+        for energy in self.data.solver.energies:
             data_energy = copy(data)
             data_energy.positions = positions_prev
             energy.set_data(data)
@@ -82,7 +72,7 @@ class Solver(System):
         self.arg = Arg(
             data.num,
             data.positions,
-            self.time_delta,
+            self.data.solver.time_delta,
             self.data.velocities,
             self.data.masses,
             NDArray[float, Literal[1]].zero(data.num * 3),
@@ -97,7 +87,7 @@ class Solver(System):
             self.b_dim, data.num * 3, self.A_num
         )
         offset = 0
-        for energy in self.energies:
+        for energy in self.data.solver.energies:
             energy.build_A(A_buider, offset)
             offset += energy.b_dim()
         self.A = A_buider.build()
@@ -114,9 +104,9 @@ class Solver(System):
         self.sparse_solver.factorize(mat)
 
     def step(self) -> None:
-        for i in range(self.iteration):
+        for i in range(self.data.solver.num_iteration):
             offset = 0
-            for energy in self.energies:
+            for energy in self.data.solver.energies:
                 energy.fill_b(self.arg.b, offset)
                 offset += energy.b_dim()
             self.update_vec()

@@ -36,17 +36,18 @@ class Arg(ArgPack):
 
 
 class Energy(BaseEnergy):
+    data: Data
     arg: Arg
     _b_dim: int
     _A_num: int
 
     @override
     def set_data(self, data: Data) -> None:
-        self.data = data.string
+        super().set_data(data)
         self.arg = Arg(data.positions,
                        data.string.num,
                        data.string.point_pairs, data.string.rest_len)
-        self._b_dim = self.data.num*3
+        self._b_dim = self.data.string.num * 3
         self._A_num = self._b_dim*2
 
     @override

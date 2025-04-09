@@ -44,6 +44,9 @@ $
   (M delta t^(-2) + gradient_x^2 E(x_(n+1))) gradient_x_n delta x_(n+1) = gradient_x^2 E(x_(n+1)) I\ 
 $
 $
+  mat(M delta t^(-2) + gradient_x^2 E(x_(n+1)),0;0,M delta t^(-2) + gradient_x^2 E(x_(n+1))) gradient_((x_n,delta x_n)) (x_(n+1),delta x_(n+1)) = mat(M delta t^(-2) I,M delta t^(-2) I;gradient_x^2 E(x_(n+1)) I,M delta t^(-2) I)
+$
+$
   M delta t^(-2) gradient_b_(n+1) delta x_(n+1) = - gradient_(x,b) E(x_(n+1),b_(n+1))\ 
   M delta t^(-2) gradient_b_(n+1) x_(n+1) = - A^T A gradient_b_(n+1) x_(n+1) - A^T I\ 
   (M delta t^(-2) + A^T A) gradient_b_(n+1) x_(n+1) = - A^T I\ 

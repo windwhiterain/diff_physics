@@ -2,15 +2,12 @@ from dataclasses import dataclass
 from typing import Literal
 
 import taichi
-import taichi._kernels
-import diff_physics
+import diff_physics as dp
 from diff_physics.common.util import Vec2I, multiply
 from diff_physics.editor import Edges, Editor, Renderable
 import diff_physics.energy
 import diff_physics.energy.string
 from diff_physics.pcg import X0Y, Attribute, Grid2Prim0, Grid2Prim1, Norm
-import diff_physics.solver
-import diff_physics.solver.PD
 from taichi_hint.wrap.linear_algbra import Vec
 from taichi_hint.wrap.ndarray import NDArray
 from taichi_lib.common import Box2I
@@ -25,26 +22,36 @@ multiply(rest_lengths, 0.9)
 
 
 @dataclass
-class Data(diff_physics.energy.string.Data, diff_physics.solver.PD.Data):
+class Data(dp.energy.string.Data, dp.solver.PD.Data):
     pass
 
 
 edges = g2p1.indices
-string_data = diff_physics.energy.string.StringData(g2p1.num, edges, rest_lengths)
+data_string = diff_physics.energy.string.StringData(g2p1.num, edges, rest_lengths)
 
 masses = NDArray[float, Literal[1]].zero(g2p0.num)
 masses.fill(1)
 
+data_solver = dp.solver.base.SolverData([diff_physics.energy.string.Energy()], 0.02)
+
 data = Data(
-    g2p0.num, positions, NDArray[Vec, Literal[1]].zero(g2p0.num), masses, string_data
+    g2p0.num,
+    positions,
+    NDArray[Vec, Literal[1]].zero(g2p0.num),
+    masses,
+    data_solver,
+    data_string,
 )
 
-solver = diff_physics.solver.PD.Solver([diff_physics.energy.string.Energy()], 0.02, 4)
+solver = diff_physics.solver.PD.Solver()
 solver.set_data(data)
 
 
 def run():
-    solver.step()
+    next_frame = solver.id_frame + 1
+    if next_frame >= solver.data.solver.num_frame:
+        next_frame = 0
+    solver.evaluate(next_frame)
 
 
 editor = Editor()
