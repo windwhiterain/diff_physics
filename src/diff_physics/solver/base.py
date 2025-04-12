@@ -170,7 +170,7 @@ class Solver(System):
                 if mask.position:
                     grad_norm_sqr += norm_sqr(self.grad_frame.positions)
                 if mask.velocity:
-                    grad_norm_sqr += norm_sqr(self.grad_frame.positions)
+                    grad_norm_sqr += norm_sqr(self.grad_frame.velocities)
                 step_scale = loss / grad_norm_sqr * 0.5
 
                 if mask.position:

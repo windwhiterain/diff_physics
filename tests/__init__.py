@@ -61,7 +61,7 @@ solver.set_data(data)
 
 
 assert data.frame.positions is positions
-optimize = solver.optimize(diff_physics.common.entity.Mask(True, False))
+optimize = solver.optimize(diff_physics.common.entity.Mask(False, True))
 
 def run():
 

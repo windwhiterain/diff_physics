@@ -137,7 +137,7 @@ class Solver(BaseSolver):
             vector = add_b(grad_x, ATGB @ l_x)
             l_x = self.sparse_solver.solve(vector)
         l_dx = NDArray[Vec, Literal[1]].zero(self.data.num * 3)
-        grad_dx = multiply(
+        grad_dx = devide(
             flatten(self.grad_frame.velocities), self.data.solver.time_delta
         )
         for i in range(self.data.solver.num_iteration_back_propagation):
@@ -147,7 +147,7 @@ class Solver(BaseSolver):
             add(self.M_ti2 @ l_x, (ATGB - self.ATA) @ l_dx)
         )
         self.grad_frame.velocities = fold(
-            devide(
+            multiply(
                 add(self.M_ti2 @ l_x, self.M_ti2 @ l_dx), self.data.solver.time_delta
             )
         )
