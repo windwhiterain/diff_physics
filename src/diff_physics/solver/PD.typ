@@ -41,7 +41,7 @@ $
 $
   M delta t^(-2) gradient_x_n delta x_(n+1) = -gradient_x^2 E(x_(n+1)) gradient_x_n x_(n+1)\ 
   M delta t^(-2) gradient_x_n delta x_(n+1) = -gradient_x^2 E(x_(n+1)) gradient_x_n delta x_(n+1) - gradient_x^2 E(x_(n+1)) I \ 
-  (M delta t^(-2) + gradient_x^2 E(x_(n+1))) gradient_x_n delta x_(n+1) = gradient_x^2 E(x_(n+1)) I\ 
+  (M delta t^(-2) + gradient_x^2 E(x_(n+1))) gradient_x_n delta x_(n+1) = -gradient_x^2 E(x_(n+1)) I\ 
 $
 $
   M delta t^(-2) gradient_b_(n+1) delta x_(n+1) = - gradient_(x,b) E(x_(n+1),b_(n+1))\ 

@@ -144,7 +144,7 @@ class Solver(BaseSolver):
             vector = add_b(grad_dx, ATGB @ l_dx)
             l_dx = self.sparse_solver.solve(vector)
         self.grad_frame.positions = fold(
-            add(self.M_ti2 @ l_x, (self.ATA + ATGB) @ l_dx)
+            add(self.M_ti2 @ l_x, (ATGB - self.ATA) @ l_dx)
         )
         self.grad_frame.velocities = fold(
             devide(
