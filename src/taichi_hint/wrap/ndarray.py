@@ -1,4 +1,4 @@
-from typing import Any, Literal, TypeVar, get_args, override
+from typing import Any, Iterable, Literal, TypeVar, get_args, override
 
 import numpy
 import taichi
@@ -9,6 +9,8 @@ from taichi_hint.wrap.linear_algbra import Algbra, LinearAlgbra, Number
 
 @wrap
 class NDArray[Item: Algbra, Dim](Wrap):
+    shape: list[int]
+
     annotation_only = True
 
     @classmethod

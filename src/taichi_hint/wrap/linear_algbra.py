@@ -24,13 +24,15 @@ class LinearAlgbra[Dim, Shape, Item: Number](Wrap):
         if not is_solid_types(dim_l, shape_l, item):
             return None
         shape = get_args(shape_l)
-        dim = len(shape)
+        dim = get_args(dim_l)[0]
         if dim == 1:
             ret = taichi.types.vector(shape[0], item)
             ret.cumprod = cumprod
             return ret
         elif dim == 2:
-            return taichi.types.matrix(shape[0], shape[1], item)
+            return taichi.types.matrix(
+                get_args(shape[0])[0], get_args(shape[1])[0], item
+            )
         else:
             raise Exception()
 
@@ -79,3 +81,4 @@ Vec2I = LinearAlgbra[Literal[1], Literal[2], int]
 VecI = LinearAlgbra[Literal[1], Literal[3], int]
 Vec2 = LinearAlgbra[Literal[1], Literal[2], float]
 Vec = LinearAlgbra[Literal[1], Literal[3], float]
+Mat = LinearAlgbra[Literal[2], tuple[Literal[3], Literal[3]], float]

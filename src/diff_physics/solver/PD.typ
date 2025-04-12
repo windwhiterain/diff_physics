@@ -44,23 +44,22 @@ $
   (M delta t^(-2) + gradient_x^2 E(x_(n+1))) gradient_x_n delta x_(n+1) = gradient_x^2 E(x_(n+1)) I\ 
 $
 $
-  mat(M delta t^(-2) + gradient_x^2 E(x_(n+1)),0;0,M delta t^(-2) + gradient_x^2 E(x_(n+1))) gradient_((x_n,delta x_n)) (x_(n+1),delta x_(n+1)) = mat(M delta t^(-2) I,M delta t^(-2) I;gradient_x^2 E(x_(n+1)) I,M delta t^(-2) I)
-$
-$
   M delta t^(-2) gradient_b_(n+1) delta x_(n+1) = - gradient_(x,b) E(x_(n+1),b_(n+1))\ 
   M delta t^(-2) gradient_b_(n+1) x_(n+1) = - A^T A gradient_b_(n+1) x_(n+1) - A^T I\ 
   (M delta t^(-2) + A^T A) gradient_b_(n+1) x_(n+1) = - A^T I\ 
   (M delta t^(-2) + A^T A) gradient_b_(n+1) delta x_(n+1) = - A^T I\ 
 $
 $
-  gradient_x^2 E(x) = A^T A + A^T gradient_x b(x)\
+  gradient_x^2 E(x) = A^T A - A^T gradient_x b(x)\
   gradient_(x,b) E(x,b) = A^T A gradient_b x + A^T I
 $
 $
-  gradient_x_n L = gradient_x_(n+1) L gradient_x_n x_(n+1) + gradient_(delta x_(n+1)) L gradient_x_n delta x_(n+1)\  
+  gradient_x_n L = gradient_x_(n+1) L gradient_x_n x_(n+1) + gradient_(delta x_(n+1)) L gradient_x_n delta x_(n+1)\ 
   gradient_(delta x_n) L = gradient_x_(n+1) L gradient_(delta x_n) x_(n+1) + gradient_(delta x_(n+1)) L gradient_(delta x_n) delta x_(n+1)\ 
 $
 $
-  (M delta t^(-2) + gradient_x^2 E(x_(n+1))) gradient_x_n L = gradient_x_(n+1) L delta t^(-2) M I + gradient_(delta x_(n+1)) L gradient_x^2 E(x_(n+1)) I\  
-  (M delta t^(-2) + gradient_x^2 E(x_(n+1))) gradient_(delta x_n) L = gradient_x_(n+1) L delta t^(-2) M I + gradient_(delta x_(n+1)) L delta t^(-2) M I\ 
+  lambda := g (M delta t ^(-2) + A^T A - A^T gradient_x b(x))^(-1)\
+  lambda (M delta t ^(-2) + A^T A - A^T gradient_x b(x)) = g\
+  (M delta t ^(-2) + A^T A - A^T gradient_x b(x)) lambda = g\
+  (M delta t ^(-2) + A^T A) lambda - A^T gradient_x b(x) lambda = g\
 $

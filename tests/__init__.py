@@ -1,9 +1,11 @@
+from copy import deepcopy
 from dataclasses import dataclass
 from typing import Literal
 
 import taichi
 import diff_physics as dp
-from diff_physics.common.util import Vec2I, multiply
+from diff_physics.common.entity import Frame
+from diff_physics.common.util import Vec2I, add, add_element, multiply
 from diff_physics.editor import Edges, Editor, Renderable
 import diff_physics.energy
 import diff_physics.energy.string
@@ -32,26 +34,39 @@ data_string = diff_physics.energy.string.StringData(g2p1.num, edges, rest_length
 masses = NDArray[float, Literal[1]].zero(g2p0.num)
 masses.fill(1)
 
-data_solver = dp.solver.base.SolverData([diff_physics.energy.string.Energy()], 0.02)
+frame = Frame(positions, NDArray[Vec, Literal[1]].zero(g2p0.num))
+target_frame = deepcopy(frame)
+add_element(target_frame.positions, Vec(-1, 0, -1))
+data_solver = dp.solver.base.SolverData(
+    [diff_physics.energy.string.Energy()],
+    0.02,
+    objectives=[
+        dp.objective.equal.Objective(target_frame, dp.common.entity.Mask(True, False))
+    ],
+    num_frame=50,
+)
 
 data = Data(
     g2p0.num,
-    positions,
-    NDArray[Vec, Literal[1]].zero(g2p0.num),
+    frame,
     masses,
     data_solver,
     data_string,
 )
 
+
 solver = diff_physics.solver.PD.Solver()
+assert data.frame.positions is positions
 solver.set_data(data)
 
 
+assert data.frame.positions is positions
+optimize = solver.optimize(diff_physics.common.entity.Mask(True, False))
+
 def run():
-    next_frame = solver.id_frame + 1
-    if next_frame >= solver.data.solver.num_frame:
-        next_frame = 0
-    solver.evaluate(next_frame)
+
+    next(optimize)
+    print(f"frame {solver.id_frame}")
 
 
 editor = Editor()
