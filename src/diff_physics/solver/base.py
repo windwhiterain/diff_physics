@@ -166,6 +166,7 @@ class Solver(System):
                     self.back_propagation()
                     for _ in self.evaluate(self.id_frame - 1):
                         yield
+                    yield
                 grad_norm_sqr = 0
                 if mask.position:
                     grad_norm_sqr += norm_sqr(self.grad_frame.positions)

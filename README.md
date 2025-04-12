@@ -6,7 +6,7 @@ this project aims to be a differentiable simulation editing tool.
 ## Run This
 - clone and build [my forked version of taichi-lang](https://github.com/windwhiterain/taichi) on branch "local"
 - this project depends on the forked taichi by relative path reference (check or modify this in [pyproject](pyproject.toml)), you can put them in the same directory.
-- run [__init__](tests/__init__.py) 
+- run [example](tests/__init__.py) 
 ## Future Work
 - add contact
 - replace taichi-lang with another backend if there is a better one 
