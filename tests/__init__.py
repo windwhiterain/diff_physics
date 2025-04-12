@@ -36,6 +36,7 @@ masses.fill(1)
 
 frame = Frame(positions, NDArray[Vec, Literal[1]].zero(g2p0.num))
 target_frame = deepcopy(frame)
+multiply(target_frame.positions, Vec(0.5))
 add_element(target_frame.positions, Vec(-1, 0, -1))
 data_solver = dp.solver.base.SolverData(
     [diff_physics.energy.string.Energy()],
