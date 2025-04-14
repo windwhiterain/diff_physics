@@ -50,6 +50,7 @@ class Arg(ArgPack):
     b: NDArray[float, Literal[1]]
     vec: NDArray[float, Literal[1]]
     positions_iter: NDArray[Vec, Literal[1]]
+    velocities_iter: NDArray[Vec, Literal[1]]
     x_iter: NDArray[float, Literal[1]]
 
 
@@ -66,10 +67,10 @@ class Solver(BaseSolver):
         self.dim_b = 0
         self.num_A = 0
         self.num_grad_b = 0
-        frame_iter = deepcopy(data.frame)
+        self.frame_iter = deepcopy(data.frame)
         for energy in self.data.solver.energies:
             data_energy = copy(data)
-            data_energy.frame = frame_iter
+            data_energy.frame = self.frame_iter
             energy.set_data(data_energy)
             self.dim_b += energy.dim_b()
             self.num_A += energy.num_A()
@@ -83,7 +84,8 @@ class Solver(BaseSolver):
             NDArray[float, Literal[1]].zero(data.num * 3),
             NDArray[float, Literal[1]].zero(self.dim_b),
             NDArray[float, Literal[1]].zero(data.num * 3),
-            frame_iter.positions,
+            self.frame_iter.positions,
+            self.frame_iter.velocities,
             NDArray[float, Literal[1]].zero(data.num * 3),
         )
         self.update_x()
@@ -112,13 +114,15 @@ class Solver(BaseSolver):
     def step(self) -> None:
         for i in range(self.data.solver.num_iteration):
             offset = 0
+            self.frame_iter.positions.copy_from(self.data.frame.positions)
+            self.frame_iter.velocities.copy_from(self.data.frame.velocities)
             for energy in self.data.solver.energies:
                 energy.fill_b(self.arg.b, offset)
                 offset += energy.dim_b()
             self.update_vec()
             x_delta_next = self.sparse_solver.solve(self.arg.vec)
-            self.update_x_positions_iter(x_delta_next)
-        self.update_position_velocity_x(x_delta_next)
+            self.update_x_frame_iter(x_delta_next)
+        self.update_frame_x(x_delta_next)
 
     @override
     def back_propagation(self) -> None:
@@ -126,6 +130,8 @@ class Solver(BaseSolver):
             self.dim_b, self.data.num * 3, self.num_grad_b
         )
         offset = 0
+        self.frame_iter.positions.copy_from(self.data.frame.positions)
+        self.frame_iter.velocities.copy_from(self.data.frame.velocities)
         for energy in self.data.solver.energies:
             energy.build_grad_b(builder_grad_b, offset)
             offset += energy.dim_b()
@@ -152,21 +158,20 @@ class Solver(BaseSolver):
             )
         )
 
-    def update_x_positions_iter(self, x_delta_next: NDArray[float, Literal[1]]):
-        self._update_x_positions_iter(self.arg, x_delta_next)
+    def update_x_frame_iter(self, x_delta_next: NDArray[float, Literal[1]]):
+        self._update_x_frame_iter(self.arg, x_delta_next)
 
     @kernel
-    def _update_x_positions_iter(
-        self, arg: Arg, x_delta_next: NDArray[float, Literal[1]]
-    ):
+    def _update_x_frame_iter(self, arg: Arg, x_delta_next: NDArray[float, Literal[1]]):
         for i in range(arg.num * 3):
             arg.x_iter[i] = arg.x[i] + x_delta_next[i]
         for i in range(arg.num):
             arg.positions_iter[i] = arg.positions[i] + get_vec(x_delta_next, i * 3)
+            arg.velocities_iter[i] = (
+                get_vec(x_delta_next, i * 3) / self.data.solver.time_delta
+            )
 
-    def update_position_velocity_x(
-        self, x_delta_next: NDArray[float, Literal[1]]
-    ) -> None:
+    def update_frame_x(self, x_delta_next: NDArray[float, Literal[1]]) -> None:
         self._update_position_velocity(self.arg, x_delta_next)
         self.update_x()
 
