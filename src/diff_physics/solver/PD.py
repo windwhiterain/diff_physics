@@ -120,9 +120,9 @@ class Solver(BaseSolver):
                 energy.fill_b(self.arg.b, offset)
                 offset += energy.dim_b()
             self.update_vec()
-            x_delta_next = self.sparse_solver.solve(self.arg.vec)
-            self.update_x_frame_iter(x_delta_next)
-        self.update_frame_x(x_delta_next)
+            x_iter_next = self.sparse_solver.solve(self.arg.vec)
+            self.update_frame_iter(x_iter_next)
+        self.update_frame(x_iter_next)
 
     @override
     def back_propagation(self) -> None:
@@ -158,35 +158,28 @@ class Solver(BaseSolver):
             )
         )
 
-    def update_x_frame_iter(self, x_delta_next: NDArray[float, Literal[1]]):
-        self._update_x_frame_iter(self.arg, x_delta_next)
+    def update_frame_iter(self, x_iter_next: NDArray[float, Literal[1]]):
+        self.arg.x_iter.copy_from(x_iter_next)
+        self._update_frame_iter(self.arg, x_iter_next)
 
     @kernel
-    def _update_x_frame_iter(self, arg: Arg, x_delta_next: NDArray[float, Literal[1]]):
-        for i in range(arg.num * 3):
-            arg.x_iter[i] = arg.x[i] + x_delta_next[i]
+    def _update_frame_iter(self, arg: Arg, x_iter_next: NDArray[float, Literal[1]]):
         for i in range(arg.num):
-            arg.positions_iter[i] = arg.positions[i] + get_vec(x_delta_next, i * 3)
+            position_iter_next = get_vec(x_iter_next, i * 3)
             arg.velocities_iter[i] = (
-                get_vec(x_delta_next, i * 3) / self.data.solver.time_delta
+                get_vec(x_iter_next, i * 3) / self.data.solver.time_delta
             )
+            arg.velocities_iter[i] = (
+                position_iter_next - arg.positions_iter[i]
+            ) / arg.time_delta
+            arg.positions_iter[i] = position_iter_next
 
-    def update_frame_x(self, x_delta_next: NDArray[float, Literal[1]]) -> None:
-        self._update_position_velocity(self.arg, x_delta_next)
-        self.update_x()
-
-    @kernel
-    def _update_position_velocity(self, arg: Arg, dx: NDArray[float, Literal[1]]):
-        for i in range(arg.num):
-            dx_idx = i*3
-            position_delta = get_vec(dx, dx_idx)
-            arg.positions[i] += position_delta
-            arg.velocities[i] = position_delta/self.arg.time_delta
+    def update_frame(self, x_delta_next: NDArray[float, Literal[1]]) -> None:
+        self.data.frame.positions.copy_from(self.frame_iter.positions)
+        self.data.frame.velocities.copy_from(self.frame_iter.velocities)
 
     def update_vec(self) -> None:
-        ATAx = self.ATA @ self.arg.x_iter
         ATb = self.AT @ self.arg.b
-        substract(ATb, ATAx)
         self.arg.vec.copy_from(ATb)
         self._update_vec(self.arg)
 
@@ -194,9 +187,18 @@ class Solver(BaseSolver):
     def _update_vec(self, arg: Arg):
         for i in range(arg.num):
             mass = arg.masses[i]
+            position = arg.positions[i]
             velocity = arg.velocities[i]
             vec_idx = i*3
-            add_vec(arg.vec, vec_idx, velocity * mass * (arg.time_delta ** (-1)))
+            add_vec(
+                arg.vec,
+                vec_idx,
+                mass
+                * (
+                    arg.time_delta ** (-1) * velocity
+                    + arg.time_delta ** (-2) * position
+                ),
+            )
 
     def update_x(self) -> None:
         self._update_x(self.arg)
