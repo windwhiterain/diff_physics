@@ -5,6 +5,7 @@ from typing import Any, Literal, override
 from diff_physics.common.entity import Frame, Mask
 from diff_physics.common.system import System
 from diff_physics.common.util import add, multiply, norm_sqr, sum
+from diff_physics.editor import SaveImage
 from diff_physics.energy.base import Energy
 from diff_physics.objective.base import Objective
 from taichi_hint.wrap.linear_algbra import Vec
@@ -15,11 +16,15 @@ from taichi_hint.wrap.ndarray import NDArray
 class SolverData:
     energies: list[Energy]
     time_delta: float
-    num_frame: int = 100
+    time: float = 1
     num_iteration: int = 4
     num_frame_cached_max: int = 10
     num_iteration_back_propagation: int = 4
     objectives: list[Objective] = field(default_factory=lambda: [])
+    height_ground: float = 0
+    num_iteration_contact_force: int = 4
+    num_iteration_contact_force_grad: int = 4
+    gravity: float = -0.01
 
 
 @dataclass
@@ -46,13 +51,14 @@ class Solver(System):
         )
         self.grad_frame.positions.fill(Vec(0))
         self.grad_frame.velocities.fill(Vec(0))
+        self.num_frame = ceil(data.solver.time / data.solver.time_delta)
         self.refresh_cache()
 
         self.id_frame = 0
 
     def refresh_cache(self):
         self.frames_saved: list[Frame | None] = [None] * ceil(
-            self.data.solver.num_frame / self.data.solver.num_frame_cached_max
+            self.num_frame / self.data.solver.num_frame_cached_max
         )
 
         def cached_frames():
@@ -148,12 +154,17 @@ class Solver(System):
 
     def back_propagation(self): ...
 
-    def optimize(self, mask: Mask):
+    def optimize(self, mask: Mask, scale_descent: float = 0.5):
+        num_iteration = -1
         while True:
+            num_iteration += 1
+
+            yield SaveImage(f"begin_{num_iteration}")
             self.grad_frame.positions.fill(Vec(0))
             self.grad_frame.velocities.fill(Vec(0))
-            for _ in self.evaluate(self.data.solver.num_frame - 1):
+            for _ in self.evaluate(self.num_frame - 1):
                 yield
+            yield SaveImage(f"end_{num_iteration}")
 
             loss = 0
             for objective in self.data.solver.objectives:
@@ -172,7 +183,7 @@ class Solver(System):
                     grad_norm_sqr += norm_sqr(self.grad_frame.positions)
                 if mask.velocity:
                     grad_norm_sqr += norm_sqr(self.grad_frame.velocities)
-                step_scale = loss / grad_norm_sqr * 0.5
+                step_scale = loss / grad_norm_sqr * scale_descent
 
                 if mask.position:
                     add(

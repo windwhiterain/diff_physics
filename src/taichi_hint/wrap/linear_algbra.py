@@ -67,6 +67,8 @@ class LinearAlgbra[Dim, Shape, Item: Number](Wrap):
         self, o: "LinearAlgbra[Dim, Shape, Item]"
     ) -> "LinearAlgbra[Dim, Shape, Item]": ...
 
+    def dot(self, o: "LinearAlgbra[Dim, Shape, Item]") -> Item: ...
+
 
 Algbra = Number | LinearAlgbra
 
@@ -83,4 +85,5 @@ Vec2I = LinearAlgbra[Literal[1], Literal[2], int]
 VecI = LinearAlgbra[Literal[1], Literal[3], int]
 Vec2 = LinearAlgbra[Literal[1], Literal[2], float]
 Vec = LinearAlgbra[Literal[1], Literal[3], float]
+Vec4 = LinearAlgbra[Literal[1], Literal[4], float]
 Mat = LinearAlgbra[Literal[2], tuple[Literal[3], Literal[3]], float]

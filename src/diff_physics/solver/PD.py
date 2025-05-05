@@ -14,16 +14,20 @@ from diff_physics.common.util import (
     devide,
     flatten,
     fold,
+    get_reduce_ret,
+    maximul_element,
     multiply,
     get_vec,
+    norm_sqr,
     set_vec,
     substract,
     substract_b,
+    sum_sqr,
 )
 from diff_physics.energy.base import Energy, System
 from diff_physics.solver.base import Data as BaseData
 from taichi_hint.argpack import ArgPack
-from taichi_hint.scope import kernel
+from taichi_hint.scope import func, kernel
 from taichi_hint.util import repr_iterable
 from taichi_hint.wrap import  wrap
 from taichi_hint.wrap.linear_algbra import Vec
@@ -43,6 +47,7 @@ class Arg(ArgPack):
     positions: NDArray[Vec, Literal[1]]
     # solver
     time_delta: float
+    time: float
     velocities: NDArray[Vec, Literal[1]]
     masses: NDArray[float, Literal[1]]
     # linear eq
@@ -52,7 +57,8 @@ class Arg(ArgPack):
     positions_iter: NDArray[Vec, Literal[1]]
     velocities_iter: NDArray[Vec, Literal[1]]
     x_iter: NDArray[float, Literal[1]]
-
+    # contact
+    force_norm_contact: NDArray[float, Literal[1]]
 
 class Solver(BaseSolver):
     data: Data  # type: ignore
@@ -62,12 +68,14 @@ class Solver(BaseSolver):
     GB: taichi.linalg.SparseMatrix
     sparse_solver: taichi.linalg.SparseSolver
 
+    @override
     def set_data(self, data: Data) -> None:  # type: ignore
         super().set_data(data)
         self.dim_b = 0
         self.num_A = 0
         self.num_grad_b = 0
         self.frame_iter = deepcopy(data.frame)
+        self.force_norm_contact = NDArray[float, Literal[1]].zero(data.num)
         for energy in self.data.solver.energies:
             data_energy = copy(data)
             data_energy.frame = self.frame_iter
@@ -79,6 +87,7 @@ class Solver(BaseSolver):
             data.num,
             data.frame.positions,
             self.data.solver.time_delta,
+            0.0,
             self.data.frame.velocities,
             self.data.masses,
             NDArray[float, Literal[1]].zero(data.num * 3),
@@ -87,6 +96,7 @@ class Solver(BaseSolver):
             self.frame_iter.positions,
             self.frame_iter.velocities,
             NDArray[float, Literal[1]].zero(data.num * 3),
+            self.force_norm_contact,
         )
         self.update_x()
         self.arg.x_iter.copy_from(self.arg.x)
@@ -106,36 +116,57 @@ class Solver(BaseSolver):
         M = m_builder.build()
         dt = self.arg.time_delta
         self.M_ti2 = M * (dt ** (-2))
-        mat = self.M_ti2 + self.A.transpose() @ self.A
+        mat = self.M_ti2 + self.AT @ self.A
         self.sparse_solver = taichi.linalg.SparseSolver(solver_type="LLT")
         self.sparse_solver.analyze_pattern(mat)
         self.sparse_solver.factorize(mat)
 
+    @override
     def step(self) -> None:
-        for i in range(self.data.solver.num_iteration):
-            offset = 0
-            self.frame_iter.positions.copy_from(self.data.frame.positions)
-            self.frame_iter.velocities.copy_from(self.data.frame.velocities)
-            for energy in self.data.solver.energies:
-                energy.fill_b(self.arg.b, offset)
-                offset += energy.dim_b()
-            self.update_vec()
-            x_iter_next = self.sparse_solver.solve(self.arg.vec)
-            self.update_frame_iter(x_iter_next)
-        self.update_frame(x_iter_next)
+        self.arg.time = self.arg.time_delta * self.id_frame
+        self.frame_iter.positions.copy_from(self.data.frame.positions)
+        self.frame_iter.velocities.copy_from(self.data.frame.velocities)
+        for i in range(self.data.solver.num_iteration_contact_force):
+            for j in range(self.data.solver.num_iteration):
+                offset = 0
+                for energy in self.data.solver.energies:
+                    energy.fill_b(self.arg.b, offset)
+                    offset += energy.dim_b()
+                self.update_vec()
+                x_iter_next = self.sparse_solver.solve(self.arg.vec)
+                self.update_frame_iter(x_iter_next)
+            loss_contact = self.loss_contact()
+            if loss_contact > 0:
+                loss_contact_grad_force_contact = self.loss_contact_gard_force_contact(
+                    loss=loss_contact
+                )
+                loss_contact_grad_force_norm_contact = (
+                    self.loss_contact_grad_force_norm_contact(
+                        loss_contact_grad_force_contact
+                    )
+                )
+                force_sum_sqr_contact = sum_sqr(loss_contact_grad_force_norm_contact)
+                if force_sum_sqr_contact > 0:
+                    substract(
+                        self.force_norm_contact,
+                        multiply(
+                            devide(
+                                loss_contact_grad_force_norm_contact,
+                                force_sum_sqr_contact,
+                            ),
+                            loss_contact,
+                        ),
+                    )
+                maximul_element(self.force_norm_contact, 0)
+            else:
+                break
+        self.update_frame()
 
     @override
     def back_propagation(self) -> None:
-        builder_grad_b = taichi.linalg.SparseMatrixBuilder(
-            self.dim_b, self.data.num * 3, self.num_grad_b
-        )
-        offset = 0
         self.frame_iter.positions.copy_from(self.data.frame.positions)
         self.frame_iter.velocities.copy_from(self.data.frame.velocities)
-        for energy in self.data.solver.energies:
-            energy.build_grad_b(builder_grad_b, offset)
-            offset += energy.dim_b()
-        grad_b = builder_grad_b.build()
+        grad_b = self.grad_b()
         ATGB = self.AT @ grad_b
         l_x = NDArray[Vec, Literal[1]].zero(self.data.num * 3)
         grad_x = flatten(self.grad_frame.positions)
@@ -158,6 +189,104 @@ class Solver(BaseSolver):
             )
         )
 
+    def grad_b(self):
+        builder_grad_b = taichi.linalg.SparseMatrixBuilder(
+            self.dim_b, self.data.num * 3, self.num_grad_b
+        )
+        offset = 0
+        for energy in self.data.solver.energies:
+            energy.build_grad_b(builder_grad_b, offset)
+            offset += energy.dim_b()
+        return builder_grad_b.build()
+
+    def loss_contact(self) -> float:
+        ret = get_reduce_ret()
+        self._loss_contact(self.arg, ret)
+        return ret[None]
+
+    @kernel
+    def _loss_contact(self, arg: Arg, reduce_ret: taichi.template()):
+        reduce_ret[None] = 0.0
+        for i in range(arg.num):
+            loss = 0.0
+            if (
+                arg.positions_iter[i][2] - self.data.solver.height_ground < 0
+                and arg.velocities_iter[i][2] < 0
+                or arg.force_norm_contact[i] > 0
+            ):
+                loss = (arg.positions_iter[i][2] - self.data.solver.height_ground) ** 2
+            reduce_ret[None] += loss
+
+    @func
+    def loss_contact_grad_x(
+        self,
+        positions: NDArray[Vec, Literal[1]],
+        velocities: NDArray[Vec, Literal[1]],
+        force_norm: NDArray[float, Literal[1]],
+        index: int,
+    ) -> Vec:
+        ret = Vec(0)
+        if (
+            positions[index][2] - self.data.solver.height_ground < 0
+            and velocities[index][2] < 0
+            or force_norm[index] > 0
+        ):
+            ret = Vec(0, 0, 2 * (positions[index][2] - self.data.solver.height_ground))
+        return ret
+
+    def loss_contact_gard_force_contact(self, loss: float):
+        ret = NDArray[float, Literal[1]].zero(self.arg.num * 3)
+        grad_b = self.grad_b()
+        ATGB = self.AT @ grad_b
+        for _ in range(self.data.solver.num_iteration_contact_force_grad):
+            vector = self.vector_contact(ret, ATGB, loss)
+            ret.copy_from(self.sparse_solver.solve(vector))
+        return ret
+
+    def vector_contact(self, solution, ATGB, loss: float):
+        vector = ATGB @ solution
+        self._vector_contact(self.arg, vector, loss)
+        return vector
+
+    @kernel
+    def _vector_contact(
+        self, arg: Arg, vector: NDArray[float, Literal[1]], loss: float
+    ):
+        for i in range(arg.num):
+            add_vec(
+                vector,
+                i * 3,
+                self.loss_contact_grad_x(
+                    arg.positions_iter, arg.velocities_iter, arg.force_norm_contact, i
+                ),
+            )
+
+    def loss_contact_grad_force_norm_contact(
+        self, loss_contact_grad_force_contact: NDArray[float, Literal[1]]
+    ):
+        ret = NDArray[float, Literal[1]].zero(self.data.num)
+        self._loss_contact_grad_force_norm_contact(
+            self.arg, loss_contact_grad_force_contact, ret
+        )
+        return ret
+
+    @kernel
+    def _loss_contact_grad_force_norm_contact(
+        self,
+        arg: Arg,
+        loss_contact_grad_force_contact: NDArray[float, Literal[1]],
+        ret: NDArray[float, Literal[1]],
+    ):
+        for i in range(arg.num):
+            if (
+                arg.positions_iter[i][2] - self.data.solver.height_ground < 0
+                and arg.velocities_iter[i][2] < 0
+                or arg.force_norm_contact[i] > 0
+            ):
+                ret[i] = Vec(0, 0, 1).dot(
+                    get_vec(loss_contact_grad_force_contact, i * 3)
+                )
+
     def update_frame_iter(self, x_iter_next: NDArray[float, Literal[1]]):
         self.arg.x_iter.copy_from(x_iter_next)
         self._update_frame_iter(self.arg, x_iter_next)
@@ -167,14 +296,11 @@ class Solver(BaseSolver):
         for i in range(arg.num):
             position_iter_next = get_vec(x_iter_next, i * 3)
             arg.velocities_iter[i] = (
-                get_vec(x_iter_next, i * 3) / self.data.solver.time_delta
-            )
-            arg.velocities_iter[i] = (
-                position_iter_next - arg.positions_iter[i]
+                position_iter_next - arg.positions[i]
             ) / arg.time_delta
             arg.positions_iter[i] = position_iter_next
 
-    def update_frame(self, x_delta_next: NDArray[float, Literal[1]]) -> None:
+    def update_frame(self) -> None:
         self.data.frame.positions.copy_from(self.frame_iter.positions)
         self.data.frame.velocities.copy_from(self.frame_iter.velocities)
 
@@ -182,6 +308,8 @@ class Solver(BaseSolver):
         ATb = self.AT @ self.arg.b
         self.arg.vec.copy_from(ATb)
         self._update_vec(self.arg)
+        self.add_force_gravity(self.arg)
+        self.add_force_contact(self.arg)
 
     @kernel
     def _update_vec(self, arg: Arg):
@@ -199,6 +327,16 @@ class Solver(BaseSolver):
                     + arg.time_delta ** (-2) * position
                 ),
             )
+
+    @kernel
+    def add_force_gravity(self, arg: Arg):
+        for i in range(arg.num):
+            add_vec(arg.vec, i * 3, Vec(0, 0, self.data.solver.gravity) * arg.masses[i])
+
+    @kernel
+    def add_force_contact(self, arg: Arg):
+        for i in range(arg.num):
+            add_vec(arg.vec, i * 3, Vec(0, 0, 1) * arg.force_norm_contact[i])
 
     def update_x(self) -> None:
         self._update_x(self.arg)

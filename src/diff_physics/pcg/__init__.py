@@ -134,6 +134,19 @@ class X0Y(Unary[Vec2, Vec]):
 
 
 @ti.data_oriented
+class Add[T: Algbra](Unary[T, T]):
+
+    def __init__(self, value: T) -> None:
+        super().__init__()
+        self.value = value
+
+    @override
+    @func
+    def forward(self, input: T) -> T:
+        return input + self.value
+
+
+@ti.data_oriented
 @specializable
 class Attribute[Item: Algbra]:
     def __init__(self, topology: Topology, unaries: list[Unary]):

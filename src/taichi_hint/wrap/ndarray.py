@@ -4,11 +4,11 @@ import numpy
 import taichi
 from taichi_hint.util import is_solid_type
 from taichi_hint.wrap.common import Wrap, wrap
-from taichi_hint.wrap.linear_algbra import Algbra, LinearAlgbra, Number
+from taichi_hint.wrap.linear_algbra import LinearAlgbra
 
 
 @wrap
-class NDArray[Item: Algbra, Dim](Wrap):
+class NDArray[Item, Dim](Wrap):
     shape: list[int]
 
     annotation_only = True

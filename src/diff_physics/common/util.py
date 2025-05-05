@@ -134,6 +134,19 @@ def _devide[Item: Algbra, Dim](a: NDArray[Item, Dim], b: Item):
         a[i] /= b
 
 
+def maximul_element[Item: Algbra, Dim](
+    a: NDArray[Item, Dim], b: Item
+) -> NDArray[Item, Dim]:
+    _maximul_element(a, b)
+    return a
+
+
+@kernel
+def _maximul_element[Item: Algbra, Dim](a: NDArray[Item, Dim], b: Item):
+    for i in taichi.grouped(a):
+        taichi.max(a[i], b)
+
+
 def flatten(a: NDArray[Vec, Literal[1]]) -> NDArray[float, Literal[1]]:
     ret = NDArray[float, Literal[1]].zero(a.shape[0] * 3)
     _flatten(a, ret)
@@ -181,12 +194,28 @@ def _sum[Item: LinearAlgbra](a: NDArray[Item, Literal[1]], b: taichi.template())
 
 
 def norm_sqr[Item: LinearAlgbra](a: NDArray[Item, Literal[1]]) -> float:
-    get_reduce_ret()[None] = 0
+    reduce_ret = get_reduce_ret()
     _norm_sqr(a, reduce_ret)
-    return get_reduce_ret()[None]
+    return reduce_ret[None]
 
 
 @kernel
-def _norm_sqr[Item: LinearAlgbra](a: NDArray[Item, Literal[1]], b: taichi.template()):
+def _norm_sqr[Item: LinearAlgbra](
+    a: NDArray[Item, Literal[1]], reduce_ret: taichi.template()
+):
+    reduce_ret[None] = 0
     for i in range(a.shape[0]):
-        b[None] += a[i].norm_sqr()
+        reduce_ret[None] += a[i].norm_sqr()
+
+
+def sum_sqr(a: NDArray[float, Literal[1]]) -> float:
+    reduce_ret = get_reduce_ret()
+    _sum_sqr(a, reduce_ret)
+    return reduce_ret[None]
+
+
+@kernel
+def _sum_sqr(a: NDArray[float, Literal[1]], reduce_ret: taichi.template()):
+    reduce_ret[None] = 0
+    for i in range(a.shape[0]):
+        reduce_ret[None] += a[i] ** 2
