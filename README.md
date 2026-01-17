@@ -11,3 +11,4 @@ this project aims to be a differentiable simulation editing tool.
 ## Future Work
 - add contact
 - replace taichi-lang with another backend if there is a better one 
+## **Note: this project will be rewrite using [Moss Lang](https://github.com/windwhiterain/moss-lang) once its ready**
